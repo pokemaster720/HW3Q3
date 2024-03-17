@@ -1,0 +1,76 @@
+def KNN_LOOCV_wrapper(df, feat, prior_distances, k=7):
+    rows = df.shape[0]
+    cols = df.shape[1]
+    
+    distances = np.zeros((rows, rows))
+    
+    for j in range(rows):
+        test = df.iloc[j, feat].values.reshape(1, -1)
+        train = df.drop(df.index[j]) 
+        
+        Xtrain = train.iloc[:, feat].values
+        Ytrain = train.iloc[:, -1].values  
+        
+        dist = np.sqrt(np.sum((Xtrain - test) ** 2, axis=1))
+        distances[j, np.arange(rows) != j] = dist  
+        
+        nearest = np.argsort(dist)[:k]
+        mode = 1 if np.mean(Ytrain[nearest]) > 0.5 else 0
+        
+        if mode == df.iloc[j, -1]: 
+            distances[j, j] = 1  
+    
+    accuracy = np.sum(np.diag(distances)) / rows
+    return accuracy * 100, distances  
+
+
+def sfs(df):
+    dist = np.zeros((df.shape[0], df.shape[0]))
+    num_features = df.shape[1] - 1
+    features = list(range(num_features))
+    best_feat = []
+    max_accuracy = [0]
+    
+    for i in range(num_features):
+        print("Iteration", i+1, "'s Best Feature List:", best_feat)
+        acc_feat_dist = []
+        
+        for j in features:
+            current_features = best_feat + [j]
+            a, temp_dist = KNN_LOOCV_wrapper(df, current_features, dist, k=7)
+            acc_feat_dist.append((a, j, temp_dist))
+        
+        acc_feat_dist.sort(reverse=True)  
+        new_acc, best_feat_num, aggregate_dist = acc_feat_dist[0]
+        
+        if new_acc <= max_accuracy[-1]:
+            break
+        else:
+            print("Accuracy of adding feature", best_feat_num, "is:", new_acc, '%')
+            max_accuracy.append(new_acc)
+            best_feat.append(best_feat_num)
+            features.remove(best_feat_num)
+            dist = aggregate_dist
+    
+    return best_feat, max_accuracy[1:]  
+
+#a
+start = time.time()
+test_feat, test_acc = sfs(x)
+end = time.time()
+print("Time to Run Wrapper Method:", end - start)
+
+
+
+df = pd.DataFrame({
+    "Added_feature": test_feat,
+    "Accuracy": test_acc
+})
+
+#b
+print("LOOCV Classification Accuracies:")
+print(df)
+
+
+print("LOOCV accuracy: ",
+      round(KNN_LOOCV(x, test_feat), 3), '%')
